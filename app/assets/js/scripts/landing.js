@@ -143,7 +143,7 @@ document.getElementById('avatarOverlay').onclick = async e => {
 
 // Bind selected account
 function updateSelectedAccount(authUser){
-    let username = Lang.queryJS('landing.selectedAccount.noAccountSelected')
+    let username = Lang.queryJS('Aucun compte sélectionné')
     if(authUser != null){
         if(authUser.displayName != null){
             username = authUser.displayName
