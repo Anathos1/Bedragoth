@@ -100,7 +100,7 @@ function setLaunchEnabled(val){
 
 // Bind launch button
 document.getElementById('launch_button').addEventListener('click', async e => {
-    loggerLanding.info('Launching game..')
+    loggerLanding.info('Lancement du jeu..')
     try {
         const server = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
         const jExe = ConfigManager.getJavaExecutable(ConfigManager.getSelectedServer())
@@ -122,7 +122,7 @@ document.getElementById('launch_button').addEventListener('click', async e => {
             }
         }
     } catch(err) {
-        loggerLanding.error('Unhandled error in during launch process.', err)
+        loggerLanding.error('Erreur non gérée lors du processus de lancement.', err)
         showLaunchFailure(Lang.queryJS('landing.launch.failureTitle'), Lang.queryJS('landing.launch.failureText'))
     }
 })
@@ -170,7 +170,7 @@ function updateSelectedServer(serv){
     setLaunchEnabled(serv != null)
 }
 // Real text is set in uibinder.js on distributionIndexDone.
-server_selection_button.innerHTML = '&#8226; ' + Lang.queryJS('landing.selectedServer.loading')
+server_selection_button.innerHTML = '&#8226; ' + Lang.queryJS('Chargement')
 server_selection_button.onclick = async e => {
     e.target.blur()
     await toggleServerSelection(true)
@@ -178,7 +178,7 @@ server_selection_button.onclick = async e => {
 
 // Update Mojang Status Color
 const refreshMojangStatuses = async function(){
-    loggerLanding.info('Refreshing Mojang Statuses..')
+    loggerLanding.info('Actualisation des statuts Mojang..')
 
     let status = 'grey'
     let tooltipEssentialHTML = ''
@@ -236,7 +236,7 @@ const refreshMojangStatuses = async function(){
 }
 
 const refreshServerStatus = async (fade = false) => {
-    loggerLanding.info('Refreshing Server Status')
+    loggerLanding.info('Actualisation état du serveur')
     const serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
 
     let pLabel = Lang.queryJS('landing.serveurStatus.server')
@@ -250,7 +250,7 @@ const refreshServerStatus = async (fade = false) => {
         pVal = servStat.players.online + '/' + servStat.players.max
 
     } catch (err) {
-        loggerLanding.warn('Unable to refresh server status, assuming offline.')
+        loggerLanding.warn('Impossible actualiser état du serveur.')
         loggerLanding.debug(err)
     }
     if(fade){
