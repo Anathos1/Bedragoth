@@ -239,8 +239,8 @@ const refreshServerStatus = async (fade = false) => {
     loggerLanding.info('Refreshing Server Status')
     const serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
 
-    let pLabel = Lang.queryJS('landing.serverStatus.server')
-    let pVal = Lang.queryJS('landing.serverStatus.offline')
+    let pLabel = Lang.queryJS('landing.serveurStatus.server')
+    let pVal = Lang.queryJS('landing.serveurStatus.offline')
 
     try {
 
