@@ -211,7 +211,7 @@ checkConsoleForDetails = "Veuillez consulter la console (CTRL + Shift + i) pour 
 checking = "Recherche des nouvelles"
 
 [js.landing.discord]
-loading = "Jeu en cours de chargement.."
+loading = "Serveur Roleplay!"
 joining = "Serveur Roleplay!"
 joined = "."
 
