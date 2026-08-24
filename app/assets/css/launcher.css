@@ -3966,3 +3966,435 @@ input:checked + .toggleSwitchSlider:before {
 .rotating {
     animation: rotating 10s linear infinite;
 }
+
+/*******************************************************************************
+ * Bedragoth custom launcher overrides
+ ******************************************************************************/
+
+/* Stack the news shortcut directly below the Bedragoth seal, like Ventrys. */
+#leftIconStack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#newsButtonContainer {
+    position: fixed;
+    top: 156px;
+    left: calc(15% - 52px);
+    height: 34px;
+    width: 34px;
+    margin-top: 14px;
+    z-index: 550;
+    transition: opacity 0.25s ease;
+}
+
+#newsButton {
+    background: rgba(0, 0, 0, 0.25);
+    border: none;
+    border-radius: 50%;
+    height: 100%;
+    width: 100%;
+    padding: 7px;
+    box-sizing: border-box;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.75);
+    transition: color 0.25s ease, background-color 0.25s ease;
+}
+
+#newsButton:hover,
+#newsButton:focus {
+    color: #fff;
+    background: rgba(0, 0, 0, 0.4);
+    outline: none;
+}
+
+#newsSVG {
+    height: 100%;
+    width: 100%;
+    fill: none;
+    stroke: currentColor;
+}
+
+/* Legacy red dot remains supported, but is placed on the small round button. */
+#newsButtonAlert {
+    width: 5px;
+    height: 5px;
+    position: absolute;
+    border-radius: 50%;
+    background: red;
+    right: 1px;
+    top: 2px;
+    z-index: 3;
+}
+
+#newsButtonContainer[unread]:before,
+#newsButtonContainer[unread]:after {
+    pointer-events: none;
+    position: absolute;
+    content: '';
+    height: 100%;
+    width: 100%;
+    top: 0;
+    left: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 12px #fff;
+    animation: glow-grow 4s ease-out infinite;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+#newsButtonContainer[unread]:before {
+    animation-delay: 2s;
+}
+
+#newsUnreadTooltip {
+    cursor: default;
+    visibility: hidden;
+    opacity: 0;
+    width: 100px;
+    height: 15px;
+    background-color: rgb(0, 0, 0);
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 2px;
+    position: absolute;
+    z-index: 4;
+    top: 115%;
+    left: -33px;
+    font-family: 'Avenir Medium';
+    font-size: 12px;
+    transition: visibility 0s linear 0.25s, opacity 0.25s ease;
+}
+
+#newsUnreadTooltip::after {
+    content: ' ';
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: transparent transparent rgb(0, 0, 0) transparent;
+}
+
+#newsButtonContainer:hover #newsUnreadTooltip {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+}
+
+/* The old central news slot remains structurally present for the existing
+   slide animation, but no longer displays a large button. */
+#landingContainer > #lower > #center {
+    pointer-events: none;
+}
+
+/* About links intentionally disabled. DevTools keeps its normal class only. */
+.settingsAboutButtonDisabled {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: default !important;
+    text-shadow: none !important;
+}
+
+
+/* Console tooltip (same behavior as the other media tooltips). */
+#devToolsTooltip {
+    cursor: default;
+    visibility: hidden;
+    opacity: 0;
+    width: 80px;
+    background-color: rgb(0, 0, 0);
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 2px;
+    position: absolute;
+    z-index: 4;
+    right: 115%;
+    font-family: 'Avenir Medium';
+    font-size: 12px;
+    transition: visibility 0s linear 0.25s, opacity 0.25s ease;
+}
+#devToolsMediaContainer:hover #devToolsTooltip {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+}
+
+
+/*******************************************************************************
+ * Bedragoth launcher additions
+ ******************************************************************************/
+
+#launchSecondaryActions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+#repair_button {
+    border: 1px solid rgba(255,255,255,.32);
+    border-radius: 3px;
+    background: rgba(0,0,0,.28);
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: .2s ease;
+}
+#repair_button:hover,
+#repair_button:focus {
+    background: rgba(255,255,255,.13);
+    border-color: rgba(255,255,255,.65);
+}
+#repair_button:disabled { opacity: .45; cursor: default; }
+
+#maintenance_message {
+    max-width: 310px;
+    margin-top: 4px;
+    text-align: right;
+    font-size: 10px;
+    font-weight: bold;
+    color: #ffb4a7;
+    text-shadow: 0 1px 3px #000;
+}
+
+#settingsBedragothToolsContainer {
+    width: 75%;
+    margin-top: 22px;
+    padding: 15px;
+    box-sizing: border-box;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(126,126,126,.57);
+    border-radius: 3px;
+}
+.settingsBedragothToolsHeader { margin-bottom: 12px; }
+.settingsBedragothToolsActions { display: flex; flex-wrap: wrap; gap: 8px; }
+.settingsBedragothToolButton {
+    border: 1px solid rgba(255,255,255,.35);
+    background: rgba(0,0,0,.3);
+    border-radius: 3px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: .2s ease;
+}
+.settingsBedragothToolButton:hover,
+.settingsBedragothToolButton:focus { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.7); }
+#settingsBedragothToolsHint { margin-top: 9px; font-size: 10px; color: lightgrey; }
+
+/* Bedragoth RSS article presentation. */
+#newsArticleContentWrapper {
+    line-height: 1.55;
+    font-size: 13px;
+}
+#newsArticleContentWrapper h1,
+#newsArticleContentWrapper h2,
+#newsArticleContentWrapper h3 {
+    font-family: 'Avenir Medium';
+    margin: 18px 0 8px;
+    line-height: 1.2;
+}
+#newsArticleContentWrapper h1 { font-size: 25px; }
+#newsArticleContentWrapper h2 { font-size: 20px; }
+#newsArticleContentWrapper h3 { font-size: 16px; }
+#newsArticleContentWrapper p { margin: 8px 0 12px; }
+#newsArticleContentWrapper img {
+    display: block;
+    max-width: 100%;
+    max-height: 430px;
+    object-fit: contain;
+    margin: 14px auto;
+    border-radius: 5px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35);
+}
+#newsArticleContentWrapper a { color: #d9e8ff; text-decoration: underline; }
+#newsArticleContentWrapper ul,
+#newsArticleContentWrapper ol { padding-left: 24px; margin: 8px 0 14px; }
+#newsArticleContentWrapper li { margin: 4px 0; }
+#newsArticleContentWrapper blockquote {
+    margin: 12px 0;
+    padding: 9px 13px;
+    border-left: 3px solid rgba(255,255,255,.55);
+    background: rgba(0,0,0,.22);
+}
+#newsArticleContentWrapper code {
+    background: rgba(0,0,0,.35);
+    border-radius: 3px;
+    padding: 2px 4px;
+}
+
+
+/* Landing quick tools ----------------------------------------------------- */
+#quickToolsMediaContainer {
+    position: relative;
+}
+
+#quickToolsTooltip {
+    cursor: default;
+    visibility: hidden;
+    opacity: 0;
+    width: 80px;
+    background-color: rgb(0, 0, 0);
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 2px;
+    position: absolute;
+    z-index: 8;
+    right: 115%;
+    font-family: 'Avenir Medium';
+    font-size: 12px;
+    transition: visibility 0s linear 0.25s, opacity 0.25s ease;
+}
+
+#quickToolsMediaContainer:hover #quickToolsTooltip {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+}
+
+#quickToolsMediaButton.active .mediaSVG {
+    filter: drop-shadow(0 0 4px rgba(255,255,255,.85));
+    height: 20px;
+}
+
+#landingQuickTools {
+    position: absolute;
+    right: 37px;
+    top: -3px;
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 5px 0;
+    border-radius: 4px;
+    background: rgba(0,0,0,.88);
+    border: 1px solid rgba(255,255,255,.18);
+    box-shadow: 0 3px 12px rgba(0,0,0,.45);
+    transition: width .22s ease, opacity .18s ease, padding .22s ease;
+    z-index: 12;
+}
+
+#landingQuickTools.open {
+    width: 170px;
+    opacity: 1;
+    pointer-events: auto;
+    padding: 5px;
+}
+
+#landingQuickTools button {
+    min-width: 160px;
+    padding: 6px 8px;
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 3px;
+    background: rgba(255,255,255,.06);
+    color: #fff;
+    font-family: 'Avenir Book';
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+#landingQuickTools button:hover,
+#landingQuickTools button:focus {
+    background: rgba(255,255,255,.15);
+    border-color: rgba(255,255,255,.55);
+    outline: none;
+}
+
+
+/* Bedragoth remote server message. */
+#remote_server_message {
+    display: block;
+    max-width: 330px;
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 14px;
+    color: #e8d9a8;
+    text-align: right;
+    text-shadow: 0 1px 3px rgba(0,0,0,.85);
+}
+
+/* More visible unread-news badge. */
+#newsButtonAlert {
+    width: 15px !important;
+    height: 15px !important;
+    right: -5px !important;
+    top: -5px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #d42020 !important;
+    color: white;
+    border: 2px solid rgba(20,20,20,.95);
+    box-sizing: border-box;
+    font-family: 'Avenir Medium';
+    font-size: 9px;
+    line-height: 11px;
+    font-weight: bold;
+    box-shadow: 0 0 8px rgba(255, 30, 30, .9);
+    animation: bedragoth-news-pulse 1.8s ease-in-out infinite;
+}
+@keyframes bedragoth-news-pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 5px rgba(255,30,30,.65); }
+    50% { transform: scale(1.16); box-shadow: 0 0 13px rgba(255,30,30,1); }
+}
+
+/* Refresh action inside server selection overlay. */
+#serverSelectRefresh {
+    background: none;
+    border: 1px solid rgba(255,255,255,.75);
+    border-radius: 2px;
+    color: white;
+    font-family: 'Avenir Medium';
+    font-size: 12px;
+    padding: 2px 8px;
+    margin-right: 10px;
+    cursor: pointer;
+    outline: none;
+}
+#serverSelectRefresh:hover,
+#serverSelectRefresh:focus {
+    box-shadow: 0 0 10px rgba(255,255,255,.7);
+}
+#serverSelectRefresh:disabled {
+    opacity: .55;
+    cursor: default;
+}
+
+
+/*******************************************************************************
+ * Bedragoth Gold Hover Theme
+ *******************************************************************************/
+:root {
+    --bedragoth-gold: #f3c64d;
+    --bedragoth-gold-deep: #d49b24;
+    --bedragoth-gold-dark: #8a5a00;
+    --bedragoth-gold-soft: rgba(243, 198, 77, 0.16);
+    --bedragoth-gold-border: rgba(243, 198, 77, 0.72);
+}
+#launch_button:hover,#launch_button:focus,#server_selection_button:hover,#server_selection_button:focus { color:var(--bedragoth-gold); text-shadow:0 0 8px var(--bedragoth-gold),0 0 16px var(--bedragoth-gold-deep),0 0 24px var(--bedragoth-gold-dark); }
+#launch_button:active,#server_selection_button:active { color:var(--bedragoth-gold-deep); text-shadow:0 0 8px var(--bedragoth-gold-deep),0 0 16px var(--bedragoth-gold-dark); }
+#repair_button:hover,#repair_button:focus { color:var(--bedragoth-gold); background:var(--bedragoth-gold-soft); border-color:var(--bedragoth-gold-border); box-shadow:0 0 10px rgba(243,198,77,.18); }
+#settingsMediaButton:hover #settingsSVG,#settingsMediaButton:focus #settingsSVG { stroke:var(--bedragoth-gold); filter:drop-shadow(0 0 4px var(--bedragoth-gold-deep)); }
+#devToolsMediaButton:hover .mediaSVG,#devToolsMediaButton:focus .mediaSVG,#quickToolsMediaButton:hover .mediaSVG,#quickToolsMediaButton:focus .mediaSVG,#quickToolsMediaButton.active .mediaSVG { fill:var(--bedragoth-gold); filter:drop-shadow(0 0 4px var(--bedragoth-gold-deep)); }
+#discordSVG:hover,#discordURL:focus #discordSVG { fill:#7288d9; }
+#newsButton:hover #newsSVG,#newsButton:focus #newsSVG { stroke:var(--bedragoth-gold); filter:drop-shadow(0 0 4px var(--bedragoth-gold-deep)); }
+#newsNavigateLeft:hover #newsNavigationLeftSVG,#newsNavigateLeft:focus #newsNavigationLeftSVG,#newsNavigateRight:hover #newsNavigationRightSVG,#newsNavigateRight:focus #newsNavigationRightSVG { -webkit-filter:drop-shadow(0 0 3px var(--bedragoth-gold)); filter:drop-shadow(0 0 3px var(--bedragoth-gold)); }
+#landingQuickTools button:hover,#landingQuickTools button:focus,.settingsBedragothToolButton:hover,.settingsBedragothToolButton:focus { color:var(--bedragoth-gold); background:var(--bedragoth-gold-soft); border-color:var(--bedragoth-gold-border); box-shadow:0 0 8px rgba(243,198,77,.12); }
+.settingsNavItem:hover,.settingsNavItem:focus { color:var(--bedragoth-gold); text-shadow:0 0 14px var(--bedragoth-gold-deep); }
+#settingsNavDone:hover,#settingsNavDone:focus,.settingsFileSelButton:hover,.settingsFileSelButton:focus,.settingsAddAuthAccount:hover,.settingsAddAuthAccount:focus,#settingsDropinFileSystemButton:hover,#settingsDropinFileSystemButton:focus,#settingsShaderpackButton:hover,#settingsShaderpackButton:focus,#settingsUpdateActionButton:hover,#settingsUpdateActionButton:focus { color:var(--bedragoth-gold); text-shadow:0 0 8px var(--bedragoth-gold),0 0 16px var(--bedragoth-gold-deep); }
+.settingsSwitchServerButton:hover,.settingsSwitchServerButton:focus { color:var(--bedragoth-gold); border-color:var(--bedragoth-gold-border); box-shadow:0 0 14px rgba(243,198,77,.48); background:var(--bedragoth-gold-soft); }
+.settingsSelectOptions div:hover { background-color:rgba(243,198,77,.18)!important; color:var(--bedragoth-gold); }
+#settingsTabJava a:hover,#settingsTabJava a:focus,.settingsChangelogText a:hover,.settingsChangelogText a:focus,.settingsAboutButton:hover,.settingsAboutButton:focus { color:var(--bedragoth-gold); }
+#welcomeButton:hover,#welcomeButton:focus,#loginButton:hover,#loginButton:focus { color:var(--bedragoth-gold); text-shadow:0 0 16px var(--bedragoth-gold-deep); }
+#welcomeButton:hover #welcomeSVG,#welcomeButton:focus #welcomeSVG,#loginButton:hover #loginSVG,#loginButton:focus #loginSVG { -webkit-filter:drop-shadow(0 0 3px var(--bedragoth-gold)); filter:drop-shadow(0 0 3px var(--bedragoth-gold)); }
+#welcomeButton:hover #welcomeSVG .arrowLine,#welcomeButton:focus #welcomeSVG .arrowLine,#loginButton:hover #loginSVG .arrowLine,#loginButton:focus #loginSVG .arrowLine { stroke:var(--bedragoth-gold); }
+.bbCodeSpoilerButton:hover,.bbCodeSpoilerButton:focus { color:var(--bedragoth-gold); text-shadow:0 0 8px var(--bedragoth-gold),0 0 16px var(--bedragoth-gold-deep); }

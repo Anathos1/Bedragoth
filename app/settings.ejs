@@ -49,7 +49,7 @@
                 </div>
             </div>
 
-            <div class="settingsAuthAccountTypeContainer">
+            <div class="settingsAuthAccountTypeContainer" id="settingsMojangAccountSection" style="display: none;">
                 <div class="settingsAuthAccountTypeHeader">
                     <div class="settingsAuthAccountTypeHeaderLeft">
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 9.677 9.667">
@@ -305,6 +305,22 @@
                 </div>
                 <div class="settingsFileSelDesc">Tous les fichiers du jeu et les installations Java locales seront stockés dans le répertoire de données.<br>Les captures d'écran et les sauvegardes du monde sont stockées dans le dossier d'instance pour la configuration de serveur correspondante.</div>
             </div>
+            <div id="settingsBedragothToolsContainer">
+                <div class="settingsTabHeader settingsBedragothToolsHeader">
+                    <span class="settingsTabHeaderText">Outils Bedragoth</span>
+                    <span class="settingsTabHeaderDesc">Accès rapide aux fichiers et informations utiles pour le support.</span>
+                </div>
+                <div class="settingsBedragothToolsActions">
+                    <button id="settingsOpenInstanceButton" class="settingsBedragothToolButton">Ouvrir le dossier du jeu</button>
+                    <button id="settingsOpenLogsButton" class="settingsBedragothToolButton">Ouvrir latest.log</button>
+                    <button id="settingsCopyLatestLogButton" class="settingsBedragothToolButton">Copier latest.log</button>
+                    <button id="settingsOpenCrashReportsButton" class="settingsBedragothToolButton">Ouvrir crash-reports</button>
+                    <button id="settingsCopyDiagnosticsButton" class="settingsBedragothToolButton">Copier le diagnostic</button>
+                    <button id="settingsRepairButton" class="settingsBedragothToolButton">Réparer les fichiers du jeu</button>
+                    <button id="settingsClearCacheButton" class="settingsBedragothToolButton">Vider le cache du launcher</button>
+                </div>
+                <div id="settingsBedragothToolsHint">Le dossier du jeu ouvre directement l'instance du serveur sélectionné.</div>
+            </div>
         </div>
         <div id="settingsTabAbout" class="settingsTab" style="display: none;">
             <div class="settingsTabHeader">
@@ -329,10 +345,10 @@
                     </div>
                 </div>
                 <div id="settingsAboutButtons">
-                    <a href="<%- lang('settings.sourceGithubLink') %>" id="settingsAboutSourceButton" class="settingsAboutButton">Forum</a>
+                    <a href="#" id="settingsAboutSourceButton" class="settingsAboutButton settingsAboutButtonDisabled" aria-disabled="true" tabindex="-1">Forum</a>
                     <!-- The following must be included in third-party usage. -->
                     <!-- <a href="." id="settingsAboutSourceButton" class="settingsAboutButton">Original Source</a> -->
-                    <a href="https://bedragoth.fandom.com/fr/wiki/Liste_des_pages" id="settingsAboutSupportButton" class="settingsAboutButton">Wiki</a>
+                    <a href="#" id="settingsAboutSupportButton" class="settingsAboutButton settingsAboutButtonDisabled" aria-disabled="true" tabindex="-1">Wiki</a>
                     <a href="#" id="settingsAboutDevToolsButton" class="settingsAboutButton">DevTools Console</a>
                 </div>
             </div>
@@ -347,7 +363,7 @@
                     </div>
                 </div>
                 <div class="settingsChangelogActions">
-                    <a class="settingsChangelogButton settingsAboutButton" href="#">Afficher les notes de publication sur GitHub</a>
+                    <a class="settingsChangelogButton settingsAboutButton settingsAboutButtonDisabled" href="#" aria-disabled="true" tabindex="-1">Afficher les notes de publication sur GitHub</a>
                 </div>
             </div>
         </div>

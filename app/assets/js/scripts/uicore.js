@@ -26,9 +26,9 @@ window.eval = global.eval = function () {
 
 // Display warning when devtools window is opened.
 remote.getCurrentWebContents().on('devtools-opened', () => {
-    console.log('%cThe console is dark and full of terrors.', 'color: white; -webkit-text-stroke: 4px #a02d2a; font-size: 60px; font-weight: bold')
-    console.log('%cIf you\'ve been told to paste something here, you\'re being scammed.', 'font-size: 16px')
-    console.log('%cUnless you know exactly what you\'re doing, close this window.', 'font-size: 16px')
+    console.log('%cBEDRAGOTH - Console développeur', 'font-size: 28px; font-weight: bold')
+    console.log('%cCet espace est destiné au diagnostic du launcher.', 'font-size: 14px')
+    console.log('%cNe colle jamais ici une commande reçue d\'une personne que tu ne connais pas.', 'font-size: 14px')
 })
 
 // Disable zoom, needed for darwin.
@@ -48,7 +48,7 @@ if(!isDev){
                 loggerAutoUpdater.info('New update available', info.version)
                 
                 if(process.platform === 'darwin'){
-                    info.darwindownload = `https://github.com/dscalzi/HeliosLauncher/releases/download/v${info.version}/Helios-Launcher-setup-${info.version}${process.arch === 'arm64' ? '-arm64' : '-x64'}.dmg`
+                    info.darwindownload = `https://github.com/Maxime-DevPro/Bedragoth/releases/download/v${info.version}/Bedragoth%20Launcher-setup-${info.version}-${process.arch === 'arm64' ? 'arm64' : 'x64'}.dmg`
                     showUpdateUI(info)
                 }
                 

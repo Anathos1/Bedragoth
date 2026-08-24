@@ -1,6 +1,10 @@
 // Requirements
-const os     = require('os')
-const semver = require('semver')
+const os        = require('os')
+const settingsPath = require('path')
+const settingsFs   = require('fs-extra')
+const semver    = require('semver')
+const { clipboard: settingsClipboard, shell: settingsShell } = require('electron')
+const settingsRemote = require('@electron/remote')
 
 const DropinModUtil  = require('./assets/js/dropinmodutil')
 const { MSFT_OPCODE, MSFT_REPLY_TYPE, MSFT_ERROR } = require('./assets/js/ipcconstants')
@@ -1072,12 +1076,16 @@ function bindShaderpackButton() {
  */
 async function loadSelectedServerOnModsTab(){
     const serv = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
+    const fallbackIcon = 'assets/images/SealCircle.png'
+    const serverDisplayName = serv.rawServer.name != null
+        ? String(serv.rawServer.name).replace(/\s*\(\s*Minecraft\s+[^)]+\)\s*$/i, '')
+        : 'Bedragoth'
 
     for(const el of document.getElementsByClassName('settingsSelServContent')) {
         el.innerHTML = `
-            <img class="serverListingImg" src="${serv.rawServer.icon}"/>
+            <img class="serverListingImg" src="${serv.rawServer.icon || fallbackIcon}"/>
             <div class="serverListingDetails">
-                <span class="serverListingName">${serv.rawServer.name}</span>
+                <span class="serverListingName">${serverDisplayName}</span>
                 <span class="serverListingDescription">${serv.rawServer.description}</span>
                 <div class="serverListingInfo">
                     <div class="serverListingVersion">${serv.rawServer.minecraftVersion}</div>
@@ -1095,6 +1103,14 @@ async function loadSelectedServerOnModsTab(){
                 </div>
             </div>
         `
+
+        const listingImg = el.querySelector('.serverListingImg')
+        if(listingImg != null){
+            listingImg.onerror = () => {
+                listingImg.onerror = null
+                listingImg.src = fallbackIcon
+            }
+        }
     }
 }
 
@@ -1393,6 +1409,109 @@ async function prepareJavaTab(){
 }
 
 /**
+ * Bedragoth support tools.
+ */
+function getSelectedInstancePath(){
+    const serverId = ConfigManager.getSelectedServer()
+    return serverId != null ? settingsPath.join(ConfigManager.getInstanceDirectory(), serverId) : ConfigManager.getInstanceDirectory()
+}
+
+document.getElementById('settingsOpenInstanceButton').onclick = async () => {
+    const instancePath = getSelectedInstancePath()
+    await settingsFs.ensureDir(instancePath)
+    const error = await settingsShell.openPath(instancePath)
+    if(error){
+        setOverlayContent('Impossible d\'ouvrir le dossier', error, 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+}
+
+document.getElementById('settingsOpenLogsButton').onclick = async () => {
+    const logsPath = settingsPath.join(getSelectedInstancePath(), 'logs')
+    await settingsFs.ensureDir(logsPath)
+    const latestLog = settingsPath.join(logsPath, 'latest.log')
+    const target = settingsFs.existsSync(latestLog) ? latestLog : logsPath
+    const error = await settingsShell.openPath(target)
+    if(error){
+        setOverlayContent('Impossible d\'ouvrir les logs', error, 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+}
+
+
+document.getElementById('settingsCopyLatestLogButton').onclick = async () => {
+    const latestLog = settingsPath.join(getSelectedInstancePath(), 'logs', 'latest.log')
+    if(!settingsFs.existsSync(latestLog)){
+        setOverlayContent('latest.log introuvable', "Aucun fichier latest.log n'a été trouvé pour cette instance.", 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+        return
+    }
+    try {
+        const content = await settingsFs.readFile(latestLog, 'utf8')
+        settingsClipboard.writeText(content)
+        setOverlayContent('latest.log copié', 'Le contenu de latest.log a été copié dans le presse-papiers.', 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } catch(err) {
+        setOverlayContent('Impossible de copier latest.log', err.message || String(err), 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+}
+
+document.getElementById('settingsOpenCrashReportsButton').onclick = async () => {
+    const crashPath = settingsPath.join(getSelectedInstancePath(), 'crash-reports')
+    await settingsFs.ensureDir(crashPath)
+    const error = await settingsShell.openPath(crashPath)
+    if(error){
+        setOverlayContent("Impossible d'ouvrir crash-reports", error, 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+}
+
+document.getElementById('settingsCopyDiagnosticsButton').onclick = async () => {
+    try {
+        const distro = await DistroAPI.getDistribution()
+        const serverId = ConfigManager.getSelectedServer()
+        const server = serverId != null ? distro.getServerById(serverId) : null
+        const totalRam = (os.totalmem()/1073741824).toFixed(1)
+        const freeRam = (os.freemem()/1073741824).toFixed(1)
+        const javaExec = serverId != null ? ConfigManager.getJavaExecutable(serverId) : null
+        const lines = [
+            '=== Diagnostic Bedragoth Launcher ===',
+            `Launcher : ${remote.app.getVersion()}`,
+            `Système : ${process.platform} ${process.arch} - ${os.release()}`,
+            `RAM : ${freeRam} Go libre / ${totalRam} Go total`,
+            `Serveur : ${server?.rawServer?.name || serverId || 'Non sélectionné'}`,
+            `ID serveur : ${serverId || 'N/A'}`,
+            `Minecraft : ${server?.rawServer?.minecraftVersion || 'N/A'}`,
+            `Version modpack : ${server?.rawServer?.version || server?.rawServer?.mainServer || 'N/A'}`,
+            `Java : ${javaExec || 'Non sélectionné'}`,
+            `Dossier données : ${ConfigManager.getDataDirectory()}`,
+            `Instance : ${getSelectedInstancePath()}`
+        ]
+        settingsClipboard.writeText(lines.join('\n'))
+        setOverlayContent('Diagnostic copié', 'Les informations de diagnostic ont été copiées dans le presse-papiers. Tu peux maintenant les coller sur Discord.', 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } catch(err) {
+        setOverlayContent('Diagnostic impossible', err.message || String(err), 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+}
+
+document.getElementById('settingsRepairButton').onclick = () => {
+    switchView(VIEWS.settings, VIEWS.landing, 300, 300, () => {
+        requestRepairInstallation()
+    })
+}
+
+/**
  * About Tab
  */
 
@@ -1451,30 +1570,36 @@ function populateAboutVersionInformation(){
  * Fetches the GitHub atom release feed and parses it for the release notes
  * of the current version. This value is displayed on the UI.
  */
-function populateReleaseNotes(){
-    $.ajax({
-        url: 'https://github.com/dscalzi/HeliosLauncher/releases.atom',
-        success: (data) => {
-            const version = 'v' + remote.app.getVersion()
-            const entries = $(data).find('entry')
-            
-            for(let i=0; i<entries.length; i++){
-                const entry = $(entries[i])
-                let id = entry.find('id').text()
-                id = id.substring(id.lastIndexOf('/')+1)
+async function populateReleaseNotes(){
+    try {
+        const distro = await DistroAPI.getDistribution()
+        const changelog = distro?.rawDistribution?.bedragoth?.changelog
 
-                if(id === version){
-                    settingsAboutChangelogTitle.innerHTML = entry.find('title').text()
-                    settingsAboutChangelogText.innerHTML = entry.find('content').text()
-                    settingsAboutChangelogButton.href = entry.find('link').attr('href')
-                }
+        if(changelog != null){
+            settingsAboutChangelogTitle.innerHTML = changelog.title || 'Bedragoth Launcher'
+            settingsAboutChangelogText.innerHTML = changelog.content || 'Aucune note de publication.'
+
+            if(changelog.url){
+                settingsAboutChangelogButton.href = changelog.url
+                settingsAboutChangelogButton.classList.remove('settingsAboutButtonDisabled')
+                settingsAboutChangelogButton.removeAttribute('aria-disabled')
+                settingsAboutChangelogButton.removeAttribute('tabindex')
+                settingsAboutChangelogButton.innerHTML = 'Afficher les notes de publication'
+            } else {
+                settingsAboutChangelogButton.href = '#'
+                settingsAboutChangelogButton.classList.add('settingsAboutButtonDisabled')
+                settingsAboutChangelogButton.setAttribute('aria-disabled', 'true')
+                settingsAboutChangelogButton.setAttribute('tabindex', '-1')
+                settingsAboutChangelogButton.innerHTML = 'Notes Bedragoth'
             }
-
-        },
-        timeout: 2500
-    }).catch(err => {
-        settingsAboutChangelogText.innerHTML = Lang.queryJS('settings.about.releaseNotesFailed')
-    })
+        } else {
+            settingsAboutChangelogTitle.innerHTML = 'Bedragoth Launcher'
+            settingsAboutChangelogText.innerHTML = 'Aucune note de publication configurée dans la distribution.'
+        }
+    } catch(err) {
+        settingsAboutChangelogTitle.innerHTML = 'Bedragoth Launcher'
+        settingsAboutChangelogText.innerHTML = 'Impossible de charger les notes de version Bedragoth.'
+    }
 }
 
 /**

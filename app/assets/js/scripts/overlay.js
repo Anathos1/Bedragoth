@@ -271,12 +271,19 @@ async function populateServerListings(){
     const distro = await DistroAPI.getDistribution()
     const giaSel = ConfigManager.getSelectedServer()
     const servers = distro.servers
+    const fallbackIcon = 'assets/images/SealCircle.png'
     let htmlString = ''
+
     for(const serv of servers){
+        const serverDisplayName = serv.rawServer.name != null
+            ? String(serv.rawServer.name).replace(/\s*\(\s*Minecraft\s+[^)]+\)\s*$/i, '')
+            : 'Bedragoth'
+        const serverIcon = serv.rawServer.icon || fallbackIcon
+
         htmlString += `<button class="serverListing" servid="${serv.rawServer.id}" ${serv.rawServer.id === giaSel ? 'selected' : ''}>
-            <img class="serverListingImg" src="${serv.rawServer.icon}"/>
+            <img class="serverListingImg" src="${serverIcon}"/>
             <div class="serverListingDetails">
-                <span class="serverListingName">${serv.rawServer.name}</span>
+                <span class="serverListingName">${serverDisplayName}</span>
                 <span class="serverListingDescription">${serv.rawServer.description}</span>
                 <div class="serverListingInfo">
                     <div class="serverListingVersion">${serv.rawServer.minecraftVersion}</div>
@@ -295,8 +302,20 @@ async function populateServerListings(){
             </div>
         </button>`
     }
-    document.getElementById('serverSelectListScrollable').innerHTML = htmlString
 
+    const list = document.getElementById('serverSelectListScrollable')
+    list.innerHTML = htmlString
+
+    // Do not use inline onerror handlers here: the launcher's CSP blocks inline JS.
+    // Attach the fallback from JavaScript so a bad/missing distribution icon always
+    // falls back to the bundled Bedragoth logo.
+    Array.from(list.getElementsByClassName('serverListingImg')).forEach(img => {
+        img.addEventListener('error', () => {
+            if(!img.src.endsWith('/assets/images/SealCircle.png')){
+                img.src = fallbackIcon
+            }
+        }, { once: true })
+    })
 }
 
 function populateAccountListings(){
@@ -316,6 +335,28 @@ function populateAccountListings(){
 async function prepareServerSelectionList(){
     await populateServerListings()
     setServerListingHandlers()
+}
+
+const serverSelectRefresh = document.getElementById('serverSelectRefresh')
+if(serverSelectRefresh != null){
+    serverSelectRefresh.onclick = async () => {
+        const previousText = serverSelectRefresh.innerHTML
+        try {
+            serverSelectRefresh.disabled = true
+            serverSelectRefresh.innerHTML = 'Actualisation...'
+            const distro = await DistroAPI.refreshDistributionOrFallback()
+            onDistroRefresh(distro)
+            await populateServerListings()
+            setServerListingHandlers()
+            await refreshServerStatus()
+            await applyBedragothRemoteConfig(distro)
+        } catch(err) {
+            console.error('Unable to refresh server list.', err)
+        } finally {
+            serverSelectRefresh.disabled = false
+            serverSelectRefresh.innerHTML = previousText
+        }
+    }
 }
 
 function prepareAccountSelectionList(){

@@ -3,6 +3,10 @@
  */
 // Requirements
 const { URL }                 = require('url')
+const landingPath                  = require('path')
+const landingFs                    = require('fs-extra')
+const { shell: landingShell, clipboard: landingClipboard } = require('electron')
+const landingRemote = require('@electron/remote')
 const {
     MojangRestAPI,
     getServerStatus
@@ -41,6 +45,55 @@ const server_selection_button = document.getElementById('server_selection_button
 const user_text               = document.getElementById('user_text')
 
 const loggerLanding = LoggerUtil.getLogger('Landing')
+
+// Bedragoth remote launcher state (configured through distribution.json).
+let bedragothMaintenanceEnabled = false
+let bedragothMaintenanceMessage = ''
+let bedragothServerMessage = ''
+
+function getBedragothRemoteConfig(distro){
+    return distro?.rawDistribution?.bedragoth || {}
+}
+
+async function applyBedragothRemoteConfig(distro = null){
+    try {
+        distro = distro || await DistroAPI.getDistribution()
+        const cfg = getBedragothRemoteConfig(distro)
+        const maintenance = cfg.maintenance || {}
+        bedragothMaintenanceEnabled = maintenance === true || maintenance.enabled === true
+        bedragothMaintenanceMessage = typeof maintenance === 'object' ? (maintenance.message || 'Le serveur est actuellement en maintenance.') : 'Le serveur est actuellement en maintenance.'
+        bedragothServerMessage = typeof cfg.serverMessage === 'string' ? cfg.serverMessage : (typeof cfg.message === 'string' ? cfg.message : '')
+
+        const launchButton = document.getElementById('launch_button')
+        const maintenanceMessage = document.getElementById('maintenance_message')
+        const remoteServerMessage = document.getElementById('remote_server_message')
+        const selectedServer = ConfigManager.getSelectedServer()
+
+        launchButton.innerHTML = bedragothMaintenanceEnabled ? 'MAINTENANCE' : 'JOUER'
+        launchButton.title = bedragothMaintenanceEnabled ? bedragothMaintenanceMessage : ''
+        launchButton.disabled = bedragothMaintenanceEnabled || selectedServer == null
+
+        if(remoteServerMessage != null){
+            if(bedragothServerMessage.trim().length > 0){
+                remoteServerMessage.textContent = bedragothServerMessage
+                remoteServerMessage.style.display = 'block'
+            } else {
+                remoteServerMessage.style.display = 'none'
+                remoteServerMessage.textContent = ''
+            }
+        }
+
+        if(bedragothMaintenanceEnabled){
+            maintenanceMessage.innerHTML = bedragothMaintenanceMessage
+            maintenanceMessage.style.display = 'block'
+        } else {
+            maintenanceMessage.style.display = 'none'
+            maintenanceMessage.innerHTML = ''
+        }
+    } catch(err) {
+        loggerLanding.warn('Unable to apply Bedragoth remote launcher configuration.', err)
+    }
+}
 
 /* Launch Progress Wrapper Functions */
 
@@ -100,6 +153,12 @@ function setLaunchEnabled(val){
 
 // Bind launch button
 document.getElementById('launch_button').addEventListener('click', async e => {
+    if(bedragothMaintenanceEnabled){
+        setOverlayContent('Serveur en maintenance', bedragothMaintenanceMessage, 'Fermer')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+        return
+    }
     loggerLanding.info('Launching game..')
     try {
         const server = (await DistroAPI.getDistribution()).getServerById(ConfigManager.getSelectedServer())
@@ -127,10 +186,248 @@ document.getElementById('launch_button').addEventListener('click', async e => {
     }
 })
 
+// Force file verification/repair without launching Minecraft.
+async function repairInstallation(){
+    const repairButton = document.getElementById('repair_button')
+    const launchButton = document.getElementById('launch_button')
+    const oldRepairDisabled = repairButton.disabled
+    const oldLaunchDisabled = launchButton.disabled
+    let fullRepairModule = null
+
+    try {
+        repairButton.disabled = true
+        launchButton.disabled = true
+        setLaunchDetails('Préparation de la réparation...')
+        toggleLaunchArea(true)
+        setLaunchPercentage(0)
+
+        const distro = await DistroAPI.refreshDistributionOrFallback()
+        onDistroRefresh(distro)
+
+        fullRepairModule = new FullRepair(
+            ConfigManager.getCommonDirectory(),
+            ConfigManager.getInstanceDirectory(),
+            ConfigManager.getLauncherDirectory(),
+            ConfigManager.getSelectedServer(),
+            DistroAPI.isDevMode()
+        )
+        fullRepairModule.spawnReceiver()
+
+        setLaunchDetails('Vérification des fichiers...')
+        const invalidFileCount = await fullRepairModule.verifyFiles(percent => setLaunchPercentage(percent))
+        setLaunchPercentage(100)
+
+        if(invalidFileCount > 0){
+            setLaunchDetails(`Téléchargement de ${invalidFileCount} fichier(s) à réparer...`)
+            setLaunchPercentage(0)
+            await fullRepairModule.download(percent => setDownloadPercentage(percent))
+            setDownloadPercentage(100)
+        }
+
+        remote.getCurrentWindow().setProgressBar(-1)
+        setLaunchDetails('Réparation terminée')
+        toggleLaunchArea(false)
+
+        setOverlayContent(
+            'Réparation terminée',
+            invalidFileCount > 0
+                ? `${invalidFileCount} fichier(s) ont été réparé(s).`
+                : 'Tous les fichiers sont déjà intègres.',
+            'OK'
+        )
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } catch(err) {
+        loggerLanding.error('Repair failed.', err)
+        remote.getCurrentWindow().setProgressBar(-1)
+        toggleLaunchArea(false)
+        setOverlayContent('Échec de la réparation', err.displayable?.desc || err.message || 'Consulte la console pour plus de détails.', 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } finally {
+        if(fullRepairModule != null){
+            try { fullRepairModule.destroyReceiver() } catch(_err) {}
+        }
+        repairButton.disabled = oldRepairDisabled
+        launchButton.disabled = bedragothMaintenanceEnabled ? true : oldLaunchDisabled
+        await applyBedragothRemoteConfig().catch(() => {})
+    }
+}
+
+function requestRepairInstallation(){
+    setOverlayContent(
+        'Réparer Bedragoth',
+        "Cette opération vérifie les fichiers du jeu et du modpack gérés par le launcher pour le serveur Bedragoth (mods, bibliothèques et autres fichiers déclarés dans la distribution), puis retélécharge ceux qui sont manquants ou invalides. Elle ne répare pas l'application du launcher elle-même et ne supprime pas tes fichiers personnels.",
+        'Lancer la réparation',
+        'Annuler'
+    )
+    setOverlayHandler(() => {
+        toggleOverlay(false)
+        repairInstallation()
+    })
+    setDismissHandler(() => toggleOverlay(false))
+    toggleOverlay(true, true)
+}
+
+document.getElementById('repair_button').onclick = requestRepairInstallation
+
 // Bind settings button
 document.getElementById('settingsMediaButton').onclick = async e => {
     await prepareSettings()
     switchView(getCurrentView(), VIEWS.settings)
+}
+
+// Bind DevTools / console button.
+document.getElementById('devToolsMediaButton').onclick = () => {
+    remote.getCurrentWindow().toggleDevTools()
+}
+
+// Quick support tools on the landing page.
+const landingQuickTools = document.getElementById('landingQuickTools')
+const landingQuickToolsButton = document.getElementById('quickToolsMediaButton')
+
+function getLandingSelectedInstancePath(){
+    const serverId = ConfigManager.getSelectedServer()
+    return serverId != null
+        ? landingPath.join(ConfigManager.getInstanceDirectory(), serverId)
+        : ConfigManager.getInstanceDirectory()
+}
+
+function setLandingQuickToolsOpen(open){
+    landingQuickTools.classList.toggle('open', open)
+    landingQuickTools.setAttribute('aria-hidden', open ? 'false' : 'true')
+    landingQuickToolsButton.classList.toggle('active', open)
+}
+
+landingQuickToolsButton.onclick = e => {
+    e.stopPropagation()
+    setLandingQuickToolsOpen(!landingQuickTools.classList.contains('open'))
+}
+
+landingQuickTools.onclick = e => e.stopPropagation()
+document.addEventListener('click', () => setLandingQuickToolsOpen(false))
+
+document.getElementById('landingOpenInstanceButton').onclick = async () => {
+    const instancePath = getLandingSelectedInstancePath()
+    await landingFs.ensureDir(instancePath)
+    const error = await landingShell.openPath(instancePath)
+    if(error){
+        setOverlayContent('Impossible d\'ouvrir le dossier', error, 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+    setLandingQuickToolsOpen(false)
+}
+
+document.getElementById('landingOpenLatestLogButton').onclick = async () => {
+    const logsPath = landingPath.join(getLandingSelectedInstancePath(), 'logs')
+    await landingFs.ensureDir(logsPath)
+    const latestLog = landingPath.join(logsPath, 'latest.log')
+    const target = landingFs.existsSync(latestLog) ? latestLog : logsPath
+    const error = await landingShell.openPath(target)
+    if(error){
+        setOverlayContent('Impossible d\'ouvrir les logs', error, 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+    setLandingQuickToolsOpen(false)
+}
+
+
+document.getElementById('landingCopyLatestLogButton').onclick = async () => {
+    const latestLog = landingPath.join(getLandingSelectedInstancePath(), 'logs', 'latest.log')
+    if(!landingFs.existsSync(latestLog)){
+        setOverlayContent('latest.log introuvable', "Aucun fichier latest.log n'a été trouvé pour cette instance.", 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+        setLandingQuickToolsOpen(false)
+        return
+    }
+    try {
+        const content = await landingFs.readFile(latestLog, 'utf8')
+        landingClipboard.writeText(content)
+        setOverlayContent('latest.log copié', 'Le contenu de latest.log a été copié dans le presse-papiers.', 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } catch(err) {
+        setOverlayContent('Impossible de copier latest.log', err.message || String(err), 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+    setLandingQuickToolsOpen(false)
+}
+
+document.getElementById('landingOpenCrashReportsButton').onclick = async () => {
+    const crashPath = landingPath.join(getLandingSelectedInstancePath(), 'crash-reports')
+    await landingFs.ensureDir(crashPath)
+    const error = await landingShell.openPath(crashPath)
+    if(error){
+        setOverlayContent("Impossible d'ouvrir crash-reports", error, 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+    setLandingQuickToolsOpen(false)
+}
+
+document.getElementById('landingCopyDiagnosticsButton').onclick = async () => {
+    try {
+        const distro = await DistroAPI.getDistribution()
+        const serverId = ConfigManager.getSelectedServer()
+        const server = serverId != null ? distro.getServerById(serverId) : null
+        const totalRam = (require('os').totalmem()/1073741824).toFixed(1)
+        const freeRam = (require('os').freemem()/1073741824).toFixed(1)
+        const javaExec = serverId != null ? ConfigManager.getJavaExecutable(serverId) : null
+        const lines = [
+            '=== Diagnostic Bedragoth Launcher ===',
+            `Launcher : ${remote.app.getVersion()}`,
+            `Système : ${process.platform} ${process.arch} - ${require('os').release()}`,
+            `RAM : ${freeRam} Go libre / ${totalRam} Go total`,
+            `Serveur : ${server?.rawServer?.name || serverId || 'Non sélectionné'}`,
+            `ID serveur : ${serverId || 'N/A'}`,
+            `Minecraft : ${server?.rawServer?.minecraftVersion || 'N/A'}`,
+            `Version modpack : ${server?.rawServer?.version || server?.rawServer?.mainServer || 'N/A'}`,
+            `Java : ${javaExec || 'Non sélectionné'}`,
+            `Dossier données : ${ConfigManager.getDataDirectory()}`,
+            `Instance : ${getLandingSelectedInstancePath()}`
+        ]
+        landingClipboard.writeText(lines.join('\n'))
+        setOverlayContent('Diagnostic copié', 'Les informations de diagnostic ont été copiées dans le presse-papiers.', 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } catch(err) {
+        setOverlayContent('Diagnostic impossible', err.message || String(err), 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+    setLandingQuickToolsOpen(false)
+}
+
+document.getElementById('landingRepairButton').onclick = () => {
+    setLandingQuickToolsOpen(false)
+    requestRepairInstallation()
+}
+
+document.getElementById('landingClearCacheButton').onclick = async () => {
+    try {
+        ConfigManager.setNewsCache({
+            date: null,
+            content: null,
+            dismissed: false
+        })
+        ConfigManager.save()
+        await landingRemote.session.defaultSession.clearCache()
+        await landingRemote.session.defaultSession.clearStorageData({
+            storages: ['appcache', 'serviceworkers', 'cachestorage', 'shadercache']
+        })
+        setOverlayContent('Cache vidé', 'Le cache du launcher a été vidé. Les news et ressources mises en cache seront rechargées au prochain affichage.', 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    } catch(err) {
+        setOverlayContent('Impossible de vider le cache', err.message || String(err), 'OK')
+        setOverlayHandler(() => toggleOverlay(false))
+        toggleOverlay(true)
+    }
+    setLandingQuickToolsOpen(false)
 }
 
 // Bind avatar overlay button.
@@ -163,11 +460,12 @@ function updateSelectedServer(serv){
     }
     ConfigManager.setSelectedServer(serv != null ? serv.rawServer.id : null)
     ConfigManager.save()
-    server_selection_button.innerHTML = '&#8226; ' + (serv != null ? serv.rawServer.name : Lang.queryJS('landing.noSelection'))
+    const serverDisplayName = serv != null ? String(serv.rawServer.name).replace(/\s*\(\s*Minecraft\s+[^)]+\)\s*$/i, '') : Lang.queryJS('landing.noSelection')
+    server_selection_button.innerHTML = '&#8226; ' + serverDisplayName
     if(getCurrentView() === VIEWS.settings){
         animateSettingsTabRefresh()
     }
-    setLaunchEnabled(serv != null)
+    setLaunchEnabled(serv != null && !bedragothMaintenanceEnabled)
 }
 // Real text is set in uibinder.js on distributionIndexDone.
 server_selection_button.innerHTML = '&#8226; ' + Lang.queryJS('landing.selectedServer.loading')
@@ -664,7 +962,7 @@ function slide_(up){
     const lCLLeft = document.querySelector('#landingContainer > #lower > #left')
     const lCLCenter = document.querySelector('#landingContainer > #lower > #center')
     const lCLRight = document.querySelector('#landingContainer > #lower > #right')
-    const newsBtn = document.querySelector('#landingContainer > #lower > #center #content')
+    const newsBtn = document.getElementById('newsButtonContainer')
     const landingContainer = document.getElementById('landingContainer')
     const newsContainer = document.querySelector('#landingContainer > #newsContainer')
 
@@ -675,7 +973,7 @@ function slide_(up){
         lCLLeft.style.top = '-200vh'
         lCLCenter.style.top = '-200vh'
         lCLRight.style.top = '-200vh'
-        newsBtn.style.top = '130vh'
+        // The compact news button stays fixed on-screen so it can also close the news view.
         newsContainer.style.top = '0px'
         //date.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric'})
         //landingContainer.style.background = 'rgba(29, 29, 29, 0.55)'
@@ -683,7 +981,7 @@ function slide_(up){
         setTimeout(() => {
             if(newsGlideCount === 1){
                 lCLCenter.style.transition = 'none'
-                newsBtn.style.transition = 'none'
+                newsBtn.style.transition = null
             }
             newsGlideCount--
         }, 2000)
@@ -699,7 +997,7 @@ function slide_(up){
         lCLLeft.style.top = '0px'
         lCLCenter.style.top = '0px'
         lCLRight.style.top = '0px'
-        newsBtn.style.top = '10px'
+        // Compact news button remains available.
     }
 }
 
@@ -714,6 +1012,10 @@ document.getElementById('newsButton').onclick = () => {
         $('#newsContainer, #newsContainer *, #lower, #lower #center *').removeAttr('tabindex')
         if(newsAlertShown){
             $('#newsButtonAlert').fadeOut(2000)
+            const newsContainerButton = document.getElementById('newsButtonContainer')
+            if(newsContainerButton != null){
+                newsContainerButton.removeAttribute('unread')
+            }
             newsAlertShown = false
             ConfigManager.setNewsCacheDismissed(true)
             ConfigManager.save()
@@ -795,6 +1097,10 @@ let newsAlertShown = false
  */
 function showNewsAlert(){
     newsAlertShown = true
+    const container = document.getElementById('newsButtonContainer')
+    if(container != null){
+        container.setAttribute('unread', '')
+    }
     $(newsButtonAlert).fadeIn(250)
 }
 

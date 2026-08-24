@@ -4,6 +4,7 @@
  */
 // Requirements
 const path          = require('path')
+const fs            = require('fs-extra')
 const { Type }      = require('helios-distribution-types')
 
 const AuthManager   = require('./assets/js/authmanager')
@@ -57,6 +58,97 @@ function getCurrentView(){
     return currentView
 }
 
+
+// Bedragoth background slideshow.
+// Put your images in assets/images/backgrounds/ (jpg, jpeg, png or webp).
+// They are sorted naturally (0.jpg, 1.jpg, 2.jpg, ...), preloaded,
+// then rotated every 12 seconds.
+const BACKGROUND_ROTATE_MS = 12000
+let backgroundSlideshowTimer = null
+
+function preloadBackground(url){
+    return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = resolve
+        img.onerror = reject
+        img.src = url
+    })
+}
+
+function getBundledBackgrounds(){
+    try {
+        const backgroundDir = path.join(__dirname, 'assets', 'images', 'backgrounds')
+        if(!fs.existsSync(backgroundDir)){
+            return []
+        }
+
+        return fs.readdirSync(backgroundDir)
+            .filter(file => /\.(jpe?g|png|webp)$/i.test(file))
+            .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+            .map(file => `assets/images/backgrounds/${file}`)
+    } catch(err) {
+        console.warn('Unable to read Bedragoth backgrounds.', err)
+        return []
+    }
+}
+
+async function startBackgroundSlideshow(){
+    let backgrounds = []
+
+    // Prefer remote backgrounds from distribution.json.
+    // Example: "bedragoth": { "backgrounds": ["https://.../1.jpg", "https://.../2.jpg"] }
+    try {
+        const distro = await DistroAPI.getDistribution()
+        const remoteBackgrounds = distro?.rawDistribution?.bedragoth?.backgrounds
+        if(Array.isArray(remoteBackgrounds)){
+            backgrounds = remoteBackgrounds
+                .map(entry => typeof entry === 'string' ? entry : entry?.url)
+                .filter(Boolean)
+        }
+    } catch(err) {
+        console.warn('Unable to read remote Bedragoth backgrounds.', err)
+    }
+
+    if(backgrounds.length === 0){
+        backgrounds = getBundledBackgrounds()
+    }
+
+    // Preserve the existing bkid behaviour if no remote or bundled background exists.
+    if(backgrounds.length === 0){
+        const bkid = document.body.getAttribute('bkid')
+        document.body.style.backgroundImage = `url('assets/images/backgrounds/${bkid}.jpg')`
+        return
+    }
+
+    // Start from the current bkid background when it exists, otherwise from the first image.
+    const bkid = document.body.getAttribute('bkid')
+    const preferredName = `${bkid}.jpg`.toLowerCase()
+    let index = backgrounds.findIndex(bg => bg.toLowerCase().endsWith('/' + preferredName))
+    if(index < 0){
+        index = 0
+    }
+
+    const showBackground = async () => {
+        const url = backgrounds[index % backgrounds.length]
+        index = (index + 1) % backgrounds.length
+        try {
+            await preloadBackground(url)
+            document.body.style.backgroundImage = `url('${url}')`
+        } catch(err) {
+            console.warn(`Unable to load background ${url}.`, err)
+        }
+    }
+
+    if(backgroundSlideshowTimer != null){
+        clearInterval(backgroundSlideshowTimer)
+    }
+
+    await showBackground()
+    if(backgrounds.length > 1){
+        backgroundSlideshowTimer = setInterval(showBackground, BACKGROUND_ROTATE_MS)
+    }
+}
+
 async function showMainUI(data){
 
     if(!isDev){
@@ -66,10 +158,11 @@ async function showMainUI(data){
 
     await prepareSettings(true)
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
+    applyBedragothRemoteConfig(data)
     refreshServerStatus()
     setTimeout(() => {
         document.getElementById('frameBar').style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
-        document.body.style.backgroundImage = `url('assets/images/backgrounds/${document.body.getAttribute('bkid')}.jpg')`
+        startBackgroundSlideshow()
         $('#main').show()
 
         const isLoggedIn = Object.keys(ConfigManager.getAuthAccounts()).length > 0
@@ -88,6 +181,9 @@ async function showMainUI(data){
                 currentView = VIEWS.landing
                 $(VIEWS.landing).fadeIn(1000)
             } else {
+                // Microsoft-only login screen. We deliberately do not auto-open the
+                // Microsoft browser flow during startup: this keeps startup stable
+                // and avoids leaving the launcher on the loading screen if auth fails.
                 loginOptionsCancelEnabled(false)
                 loginOptionsViewOnLoginSuccess = VIEWS.landing
                 loginOptionsViewOnLoginCancel = VIEWS.loginOptions
@@ -134,6 +230,8 @@ function showFatalStartupError(){
  */
 function onDistroRefresh(data){
     updateSelectedServer(data.getServerById(ConfigManager.getSelectedServer()))
+    applyBedragothRemoteConfig(data)
+    startBackgroundSlideshow()
     refreshServerStatus()
     initNews()
     syncModConfigurations(data)
