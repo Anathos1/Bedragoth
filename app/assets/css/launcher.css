@@ -3971,7 +3971,6 @@ input:checked + .toggleSwitchSlider:before {
  * Bedragoth custom launcher overrides
  ******************************************************************************/
 
-/* Stack the news shortcut directly below the Bedragoth seal, like Ventrys. */
 #leftIconStack {
     display: flex;
     flex-direction: column;
@@ -4313,8 +4312,10 @@ input:checked + .toggleSwitchSlider:before {
 /* Bedragoth remote server message. */
 #remote_server_message {
     display: block;
-    max-width: 330px;
-    margin-top: 5px;
+    max-width: 420px;
+    margin-top: 10px;
+    margin-left: auto;
+    padding-right: 2px;
     font-size: 11px;
     line-height: 14px;
     color: #e8d9a8;

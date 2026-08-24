@@ -1270,63 +1270,64 @@ async function loadNews(){
         return null
     }
 
-    const promise = new Promise((resolve, reject) => {
-        
-        const newsFeed = distroData.rawDistribution.rss
-        const newsHost = new URL(newsFeed).origin + '/'
-        $.ajax({
-            url: newsFeed,
-            success: (data) => {
-                const items = $(data).find('item')
-                const articles = []
+    const newsFeed = distroData.rawDistribution.rss
+    const newsHost = new URL(newsFeed).origin + '/'
 
-                for(let i=0; i<items.length; i++){
-                // JQuery Element
-                    const el = $(items[i])
+    try {
+        // Fetch through Electron's main process. This uses Chromium's network
+        // stack and is not subject to renderer file:// / CORS restrictions.
+        const remoteResult = await ipcRenderer.invoke('bedragothFetchRemote', newsFeed, 'text')
+        if(!remoteResult?.ok){
+            throw new Error(remoteResult?.error || 'Unable to download RSS feed.')
+        }
 
-                    // Resolve date.
-                    const date = new Date(el.find('pubDate').text()).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric'})
+        const xmlText = remoteResult.data
+        if(typeof xmlText !== 'string' || xmlText.trim().length === 0){
+            throw new Error('RSS feed is empty.')
+        }
 
-                    // Resolve comments.
-                    let comments = el.find('slash\\:comments').text() || '0'
-                    comments = comments + ' Comment' + (comments === '1' ? '' : 's')
+        const xmlDocument = $.parseXML(xmlText)
+        const items = $(xmlDocument).find('item')
+        const articles = []
 
-                    // Fix relative links in content.
-                    let content = el.find('content\\:encoded').text()
-                    let regex = /src="(?!http:\/\/|https:\/\/)(.+?)"/g
-                    let matches
-                    while((matches = regex.exec(content))){
-                        content = content.replace(`"${matches[1]}"`, `"${newsHost + matches[1]}"`)
-                    }
+        for(let i=0; i<items.length; i++){
+            const el = $(items[i])
 
-                    let link   = el.find('link').text()
-                    let title  = el.find('title').text()
-                    let author = el.find('dc\\:creator').text()
+            const rawDate = el.find('pubDate').text()
+            const parsedDate = new Date(rawDate)
+            const date = Number.isNaN(parsedDate.getTime())
+                ? rawDate
+                : parsedDate.toLocaleDateString('fr-FR', {month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'})
 
-                    // Generate article.
-                    articles.push(
-                        {
-                            link,
-                            title,
-                            date,
-                            author,
-                            content,
-                            comments,
-                            commentsLink: link + '#comments'
-                        }
-                    )
-                }
-                resolve({
-                    articles
-                })
-            },
-            timeout: 2500
-        }).catch(err => {
-            resolve({
-                articles: null
+            let comments = el.find('slash\\:comments').text() || '0'
+            comments = comments + ' Comment' + (comments === '1' ? '' : 's')
+
+            let content = el.find('content\\:encoded').text()
+            let regex = /src="(?!https?:\/\/)(.+?)"/g
+            let matches
+            while((matches = regex.exec(content))){
+                content = content.replace(`"${matches[1]}"`, `"${newsHost + matches[1]}"`)
+            }
+
+            const link = el.find('link').first().text().trim()
+            const title = el.find('title').first().text().trim()
+            const author = el.find('dc\\:creator').text().trim() || 'Bedragoth'
+
+            articles.push({
+                link,
+                title,
+                date,
+                author,
+                content,
+                comments,
+                commentsLink: link ? link + '#comments' : ''
             })
-        })
-    })
+        }
 
-    return await promise
+        return { articles }
+    } catch(err) {
+        loggerLanding.error(`Unable to load Bedragoth RSS feed (${newsFeed}).`, err)
+        console.error('[Bedragoth News] RSS load failed:', newsFeed, err)
+        return { articles: null }
+    }
 }

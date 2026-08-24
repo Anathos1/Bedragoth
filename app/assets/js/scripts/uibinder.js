@@ -75,6 +75,26 @@ function preloadBackground(url){
     })
 }
 
+async function resolveRemoteBackground(url){
+    if(!/^https?:\/\//i.test(url)){
+        return url
+    }
+
+    const result = await ipcRenderer.invoke('bedragothFetchRemote', url, 'base64')
+    if(!result?.ok){
+        throw new Error(result?.error || `Unable to download ${url}`)
+    }
+
+    let mime = (result.contentType || '').split(';')[0].trim()
+    if(!mime.startsWith('image/')){
+        if(/\.png(?:$|\?)/i.test(url)) mime = 'image/png'
+        else if(/\.webp(?:$|\?)/i.test(url)) mime = 'image/webp'
+        else mime = 'image/jpeg'
+    }
+
+    return `data:${mime};base64,${result.data}`
+}
+
 function getBundledBackgrounds(){
     try {
         const backgroundDir = path.join(__dirname, 'assets', 'images', 'backgrounds')
@@ -92,13 +112,13 @@ function getBundledBackgrounds(){
     }
 }
 
-async function startBackgroundSlideshow(){
+async function startBackgroundSlideshow(distro = null){
     let backgrounds = []
 
     // Prefer remote backgrounds from distribution.json.
     // Example: "bedragoth": { "backgrounds": ["https://.../1.jpg", "https://.../2.jpg"] }
     try {
-        const distro = await DistroAPI.getDistribution()
+        distro = distro || await DistroAPI.getDistribution()
         const remoteBackgrounds = distro?.rawDistribution?.bedragoth?.backgrounds
         if(Array.isArray(remoteBackgrounds)){
             backgrounds = remoteBackgrounds
@@ -132,10 +152,19 @@ async function startBackgroundSlideshow(){
         const url = backgrounds[index % backgrounds.length]
         index = (index + 1) % backgrounds.length
         try {
-            await preloadBackground(url)
-            document.body.style.backgroundImage = `url('${url}')`
+            const resolvedUrl = await resolveRemoteBackground(url)
+            await preloadBackground(resolvedUrl)
+            document.body.style.backgroundImage = `url('${resolvedUrl}')`
         } catch(err) {
-            console.warn(`Unable to load background ${url}.`, err)
+            console.warn(`Unable to load background ${url}. Falling back to bundled backgrounds.`, err)
+            const bundled = getBundledBackgrounds()
+            if(bundled.length > 0){
+                const fallback = bundled[Math.max(0, (index - 1)) % bundled.length]
+                try {
+                    await preloadBackground(fallback)
+                    document.body.style.backgroundImage = `url('${fallback}')`
+                } catch(_) {}
+            }
         }
     }
 
@@ -162,7 +191,7 @@ async function showMainUI(data){
     refreshServerStatus()
     setTimeout(() => {
         document.getElementById('frameBar').style.backgroundColor = 'rgba(0, 0, 0, 0.5)'
-        startBackgroundSlideshow()
+        startBackgroundSlideshow(data)
         $('#main').show()
 
         const isLoggedIn = Object.keys(ConfigManager.getAuthAccounts()).length > 0

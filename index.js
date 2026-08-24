@@ -2,7 +2,7 @@ const remoteMain = require('@electron/remote/main')
 remoteMain.initialize()
 
 // Requirements
-const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, shell, net } = require('electron')
 const autoUpdater                       = require('electron-updater').autoUpdater
 const ejse                              = require('ejs-electron')
 const fs                                = require('fs')
@@ -84,6 +84,44 @@ ipcMain.on('autoUpdateAction', (event, arg, data) => {
             break
     }
 })
+
+// Fetch remote launcher resources through Electron's main process.
+// This avoids renderer CORS/file:// restrictions and uses Chromium's network stack.
+ipcMain.handle('bedragothFetchRemote', async (event, url, mode = 'text') => {
+    try {
+        const parsed = new URL(url)
+        if(parsed.protocol !== 'https:' && parsed.protocol !== 'http:'){
+            throw new Error(`Unsupported protocol: ${parsed.protocol}`)
+        }
+
+        const response = await net.fetch(url, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: {
+                'accept': mode === 'base64'
+                    ? 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+                    : 'application/rss+xml,application/xml,text/xml,text/plain,*/*;q=0.8',
+                'cache-control': 'no-cache'
+            }
+        })
+
+        if(!response.ok){
+            throw new Error(`HTTP ${response.status} ${response.statusText}`)
+        }
+
+        const contentType = response.headers.get('content-type') || ''
+        if(mode === 'base64'){
+            const bytes = Buffer.from(await response.arrayBuffer())
+            return { ok: true, status: response.status, contentType, data: bytes.toString('base64') }
+        }
+
+        return { ok: true, status: response.status, contentType, data: await response.text() }
+    } catch(error) {
+        console.error('[Bedragoth Remote Fetch]', url, error)
+        return { ok: false, error: error?.message || String(error) }
+    }
+})
+
 // Redirect distribution index event from preloader to renderer.
 ipcMain.on('distributionIndexDone', (event, res) => {
     event.sender.send('distributionIndexDone', res)
