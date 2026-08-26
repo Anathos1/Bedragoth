@@ -1155,30 +1155,22 @@ async function initNews(){
 
         const lN = newsArr[0]
         const cached = ConfigManager.getNewsCache()
-        let newHash = await digestMessage(lN.content)
-        let newDate = new Date(lN.date)
+        const newHash = await digestMessage(lN.content)
+        const newDate = Number.isFinite(lN.timestamp) ? lN.timestamp : 0
         let isNew = false
 
         if(cached.date != null && cached.content != null){
+            const cachedDate = Number(cached.date)
+            const sameContent = cached.content === newHash
+            const sameOrOlderDate = Number.isFinite(cachedDate) && cachedDate >= newDate
 
-            if(new Date(cached.date) >= newDate){
-
-                // Compare Content
-                if(cached.content !== newHash){
-                    isNew = true
-                    showNewsAlert()
-                } else {
-                    if(!cached.dismissed){
-                        isNew = true
-                        showNewsAlert()
-                    }
-                }
-
-            } else {
+            if(!sameContent || !sameOrOlderDate){
+                isNew = true
+                showNewsAlert()
+            } else if(!cached.dismissed){
                 isNew = true
                 showNewsAlert()
             }
-
         } else {
             isNew = true
             showNewsAlert()
@@ -1186,7 +1178,7 @@ async function initNews(){
 
         if(isNew){
             ConfigManager.setNewsCache({
-                date: newDate.getTime(),
+                date: newDate,
                 content: newHash,
                 dismissed: false
             })
@@ -1317,6 +1309,7 @@ async function loadNews(){
                 link,
                 title,
                 date,
+                timestamp: Number.isNaN(parsedDate.getTime()) ? 0 : parsedDate.getTime(),
                 author,
                 content,
                 comments,
